@@ -1,12 +1,11 @@
 ﻿using BookReviewingQueueProducer.Services.Messaging.Contract;
 using BookReviewingQueueProducer.Services.Messaging.Messages.Book;
 using BookReviewingQueueProducer.Services.Messaging.Messages.User;
+using BookReviewingQueueProducer.Services.Requests.Book;
+using BookReviewingQueueProducer.Services.Requests.User;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace BookReviewingQueueProducer.Api.Controllers
 {
@@ -23,17 +22,20 @@ namespace BookReviewingQueueProducer.Api.Controllers
 
         [HttpPost("PublishBookCreatedMessage")]
         [ProducesResponseType(typeof(BookCreatedMessage), StatusCodes.Status200OK)]
-        public IActionResult PublishBookCreatedMessage(BookCreatedMessage message)
+        public IActionResult PublishBookCreatedMessage(PublishBookCreatedMessageRequest request)
         {
-            message ??= new BookCreatedMessage();
+            var message = new BookCreatedMessage
+            {
+                CreatedAt = DateTime.Now
+            };
 
-            if (message.BookId <= 0)
+            if (request != null && request.BookId.HasValue && request.BookId.Value > 0)
+                message.BookId = request.BookId.Value;
+            else
             {
                 var random = new Random();
-                message.BookId = random.Next(100);
+                message.BookId = random.Next(1, 101);
             }
-
-            message.CreatedAt = DateTime.Now;
 
             _messagePublisher.Publish(message);
 
@@ -43,12 +45,17 @@ namespace BookReviewingQueueProducer.Api.Controllers
         [HttpPost("PublishBookRemovedMessage")]
         [ProducesResponseType(typeof(BookRemovedMessage), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public IActionResult PublishBookRemovedMessage(BookRemovedMessage message)
+        public IActionResult PublishBookRemovedMessage(PublishBookRemovedMessageRequest request)
         {
-            if (message == null || message.BookId <= 0)
+            if (request == null || !request.BookId.HasValue || request.BookId <= 0)
             {
                 return BadRequest("Please submit a valid Id");
             }
+
+            var message = new BookRemovedMessage
+            {
+                BookId = request.BookId.Value
+            };
 
             _messagePublisher.Publish(message);
 
@@ -57,14 +64,16 @@ namespace BookReviewingQueueProducer.Api.Controllers
 
         [HttpPost("PublishUserCreatedMessage")]
         [ProducesResponseType(typeof(UserCreatedMessage), StatusCodes.Status200OK)]
-        public IActionResult PublishUserCreatedMessage(UserCreatedMessage message)
+        public IActionResult PublishUserCreatedMessage(PublishUserCreatedMessageRequest request)
         {
-            message ??= new UserCreatedMessage();
+            var message = new UserCreatedMessage();
 
-            if (message.UserId == Guid.Empty)
+            if (request.UserId != Guid.Empty)
+                message.UserId = request.UserId;
+            else
                 message.UserId = Guid.NewGuid();
 
-            if (string.IsNullOrEmpty(message.Name))
+            if (string.IsNullOrEmpty(request.Name))
             {
                 var possibleNames = new string[]
                 {
@@ -81,6 +90,8 @@ namespace BookReviewingQueueProducer.Api.Controllers
                 var random = new Random();
                 message.Name = possibleNames[random.Next(possibleNames.Length)];
             }
+            else
+                message.Name = request.Name;
 
             _messagePublisher.Publish(message);
 
